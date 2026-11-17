@@ -1,7 +1,7 @@
 plugins {
     id 'fabric-loom' version '1.14.10'
 }
-version = '1.0.1'
+version = '1.0.2'
 group = 'dev.soundpanel'
 base { archivesName = 'sound-panel' }
 repositories {

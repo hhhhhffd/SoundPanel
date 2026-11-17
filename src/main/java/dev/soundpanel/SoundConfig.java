@@ -22,7 +22,7 @@ public final class SoundConfig {
     private final Path sourceDir;
     private volatile Map<String, Clip> mappings = Map.of();
 
-    SoundConfig() { this(FabricLoader.getInstance().getConfigDir().resolve("soundpanel"), FabricLoader.getInstance().getGameDir().resolve("sounds")); }
+    SoundConfig() { this(FabricLoader.getInstance().getConfigDir().resolve("soundpanel"), FolderAccess.sourceFor(FabricLoader.getInstance().getGameDir())); }
     SoundConfig(Path configDir, Path sourceDir) { this.configDir = configDir; this.sourceDir = sourceDir; }
     Path importDir() { return configDir.resolve("clips"); }
     Path sourceDir() { return sourceDir; }

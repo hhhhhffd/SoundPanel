@@ -12,7 +12,6 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
-import java.awt.Desktop;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -38,13 +37,14 @@ final class SoundPanelScreen extends Screen {
     private SoundConfig.Clip prepared;
     private boolean working;
     private boolean removed;
+    private boolean folderOpening, folderScanFailed;
     private int soundScroll, fileScroll;
     private int soundCursor, fileCursor = -1;
     private List<SoundCatalog.Group> allGroups = List.of();
     private List<Row> rows = List.of();
     private List<Path> allFiles = List.of(), files = List.of();
     private TextFieldWidget soundSearch, fileSearch;
-    private ActionButton pvpTab, allTab, serverTab, original, current, reset, preview, apply, reload, openFolder;
+    private ActionButton pvpTab, allTab, serverTab, original, current, reset, preview, apply, reload, openFolder, copyPath;
     private SoundPanelLayout layout;
 
     SoundPanelScreen(Screen parent) {
@@ -78,7 +78,12 @@ final class SoundPanelScreen extends Screen {
         reload = button(scanX, tabY, scanWidth, tabH, "Scan", Kind.SOFT, this::reloadFromButton);
         openFolder = button(filesX, tabY, filesWidth, tabH, "Files", Kind.SOFT, this::openFolder);
         reload.setTooltip(Tooltip.of(Text.literal("Refresh the audio file list")));
-        openFolder.setTooltip(Tooltip.of(Text.literal("Open the instance's sounds folder")));
+        var folder = SoundPanel.CONFIG.sourceDir().toString();
+        openFolder.setTooltip(Tooltip.of(Text.literal("Open this folder:\n" + folder)));
+        int copyWidth = textRenderer.getWidth("Copy path") + 8;
+        copyPath = button(right + rw - copyWidth - 5, l.paneY() + 2, copyWidth, 12,
+                "Copy path", Kind.SOFT, this::copySourcePath);
+        copyPath.setTooltip(Tooltip.of(Text.literal(folder)));
         button(x + l.w() - 28, l.y() + 5, 20, 15, "X", Kind.SOFT, this::close)
                 .setTooltip(Tooltip.of(Text.literal("Close Sound Panel")));
 
@@ -209,14 +214,18 @@ final class SoundPanelScreen extends Screen {
     private void readFiles() {
         var source = SoundPanel.CONFIG.sourceDir();
         try {
-            Files.createDirectories(source);
+            FolderAccess.ensure(source);
             try (var paths = Files.list(source)) {
                 allFiles = paths.filter(p -> Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS))
                         .filter(p -> AudioConversion.isSupportedName(p.getFileName().toString()))
                         .sorted(Comparator.comparing(p -> p.getFileName().toString().toLowerCase(Locale.ROOT))).toList();
             }
-        } catch (java.io.IOException e) {
+            folderScanFailed = false;
+        } catch (java.io.IOException | SecurityException e) {
             allFiles = List.of();
+            folderScanFailed = true;
+            SoundPanel.LOG.warn("Could not scan audio folder {}", source, e);
+            setStatus("Cannot read the sounds folder. Use Copy path to check it.", RED);
         }
         filterFiles();
     }
@@ -237,22 +246,43 @@ final class SoundPanelScreen extends Screen {
         SoundPanel.CONFIG.discardCandidate(prepared);
         prepared = null;
         readFiles();
-        setStatus(allFiles.isEmpty() ? "Add audio to the sounds folder to get started." : allFiles.size() + " audio files available.", MUTED);
+        if (!folderScanFailed) setStatus(allFiles.isEmpty() ? "Add audio to the sounds folder to get started." : allFiles.size() + " audio files available.", MUTED);
     }
 
     private void openFolder() {
+        if (folderOpening) return;
         var game = client;
+        var folder = SoundPanel.CONFIG.sourceDir();
+        folderOpening = true;
+        refreshButtons();
+        setStatus("Opening the sounds folder...", MUTED);
         CompletableFuture.runAsync(() -> {
-            try {
-                Files.createDirectories(SoundPanel.CONFIG.sourceDir());
-                if (!Desktop.isDesktopSupported() || !Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-                    throw new UnsupportedOperationException("Desktop folder opening unsupported");
-                }
-                Desktop.getDesktop().open(SoundPanel.CONFIG.sourceDir().toFile());
-            } catch (Exception e) {
-                game.execute(() -> setStatus("Open the instance's sounds folder manually.", YELLOW));
+            try { FolderAccess.open(folder); }
+            catch (java.io.IOException | RuntimeException e) { throw new java.util.concurrent.CompletionException(e); }
+        }).whenComplete((unused, failure) -> game.execute(() -> {
+            folderOpening = false;
+            if (removed || game.currentScreen != this) return;
+            refreshButtons();
+            if (failure == null) {
+                setStatus("Folder open requested. If it didn't appear, use Copy path.", GREEN);
+            } else {
+                SoundPanel.LOG.warn("Unable to open audio folder {}", folder, failure);
+                setStatus("Can't open the folder. Use Copy path and paste it into your file manager.", RED);
             }
-        });
+        }));
+    }
+
+    private void copySourcePath() {
+        var folder = SoundPanel.CONFIG.sourceDir().toString();
+        try {
+            client.keyboard.setClipboard(folder);
+            if (folder.equals(client.keyboard.getClipboard())) {
+                setStatus("Full folder path copied. Paste it into your file manager.", GREEN);
+            } else setStatus("Clipboard unavailable. Hover Copy path to see the full path.", YELLOW);
+        } catch (RuntimeException e) {
+            SoundPanel.LOG.warn("Could not copy the audio folder path", e);
+            setStatus("Clipboard unavailable. Hover Copy path to see the full path.", YELLOW);
+        }
     }
 
     private Identifier assignment(SoundCatalog.Event event) {
@@ -274,6 +304,7 @@ final class SoundPanelScreen extends Screen {
         preview.active = !working && candidate != null;
         apply.active = !working && selected != null && candidate != null;
         reload.active = !working;
+        openFolder.active = !folderOpening;
     }
 
     private void playAssignment(boolean vanilla) {
@@ -491,9 +522,9 @@ final class SoundPanelScreen extends Screen {
         ctx.fill(l.x(), l.y(), l.x() + l.w(), l.y() + l.h(), BASE);
         ctx.fill(l.x(), l.y(), l.x() + l.w(), l.y() + 2, GREEN);
         write(ctx, "SOUND PANEL", l.x() + 8, l.y() + 10, 106, WHITE, true);
-        if (l.w() >= 342) write(ctx, "1.0.1  /  PvP AUDIO", l.x() + 103, l.y() + 10, l.w() - 135, MUTED, false);
-        pane(ctx, l.leftX(), l.leftWidth(), "1   SOUND EVENTS", focus == Pane.SOUNDS);
-        pane(ctx, l.rightX(), l.rightWidth(), "2   YOUR AUDIO FILES", focus == Pane.FILES);
+        if (l.w() >= 342) write(ctx, "1.0.2  /  PvP AUDIO", l.x() + 103, l.y() + 10, l.w() - 135, MUTED, false);
+        pane(ctx, l.leftX(), l.leftWidth(), "1   SOUND EVENTS", focus == Pane.SOUNDS, 0);
+        pane(ctx, l.rightX(), l.rightWidth(), "2   AUDIO FILES", focus == Pane.FILES, copyPath.getWidth() + 5);
         renderSounds(ctx, mx, my);
         renderFiles(ctx, mx, my);
         renderDetails(ctx);
@@ -503,13 +534,13 @@ final class SoundPanelScreen extends Screen {
         super.render(ctx, mx, my, delta);
     }
 
-    private void pane(DrawContext ctx, int x, int w, String heading, boolean active) {
+    private void pane(DrawContext ctx, int x, int w, String heading, boolean active, int reserved) {
         var l = layout;
         ctx.fill(x, l.paneY(), x+w, l.paneBottom(), PANEL);
         ctx.fill(x, l.paneY(), x+w, l.paneY()+1, active ? GREEN : LINE);
         int searchH = l.compact() ? 14 : 16;
         ctx.fill(x+7, l.searchY(), x+w-7, l.searchY()+searchH, BASE);
-        write(ctx, heading, x+7, l.paneY()+5, w-14, active ? GREEN : MUTED, false);
+        write(ctx, heading, x+7, l.paneY()+5, w-14-reserved, active ? GREEN : MUTED, false);
     }
 
     private void renderSounds(DrawContext ctx, int mx, int my) {

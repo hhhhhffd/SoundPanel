@@ -19,8 +19,10 @@ public final class SoundPanel implements ClientModInitializer {
         CONFIG.load();
         CONFIG.clearCandidateCache();
         PackSoundCatalog.register();
-        try { java.nio.file.Files.createDirectories(CONFIG.sourceDir()); }
-        catch (java.io.IOException e) { LOG.warn("Unable to create sounds folder", e); }
+        try { LOG.info("Audio source folder: {}", FolderAccess.ensure(CONFIG.sourceDir())); }
+        catch (java.io.IOException | SecurityException e) {
+            LOG.warn("Unable to create audio source folder {}", CONFIG.sourceDir(), e);
+        }
     }
 
     public static Sound replace(Sound original, SoundInstance instance) {

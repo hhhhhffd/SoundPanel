@@ -10,6 +10,7 @@ import java.util.List;
 public final class SoundPanelTests {
     public static void main(String[] args) throws Exception {
         PackSoundCatalogTests.run();
+        FolderAccessTests.run();
         checkLayout(320, 180, 3);
         checkLayout(393, 270, 5);
         checkLayout(426, 240, 4);

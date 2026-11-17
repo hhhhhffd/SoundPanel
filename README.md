@@ -1,12 +1,12 @@
-# Sound Panel 1.0.1
+# Sound Panel 1.0.2
 
 Minecraft Java **1.21.11** client mod. Requires Java 21, Fabric Loader 0.18.4 or newer, Fabric API, and Mod Menu 17. No server mods required.
 
 1. Place the release JAR, Fabric API, and Mod Menu in your Minecraft instance's `mods` directory.
-2. Put audio files into the instance's `sounds` folder (for a standard install, `.minecraft/sounds`). Sound Panel creates this folder on first launch.
+2. Put audio files into the instance's `sounds` folder (for the normal launcher profile, `.minecraft/sounds`; other launcher instances have their own game directory). Sound Panel creates this folder on first launch.
 3. Open **Mods → Sound Panel → Configure**. **PvP** starts with common melee, crystal, survival, mace, shield and XP sounds. **All** keeps the full expandable sound catalog. Search the event list on the left and the audio file list on the right separately.
 4. Select an event on the left and a file on the right. **Original** plays vanilla or the raw pack event, **Current** plays your installed replacement, and **Preview** lets you hear the selected file before saving. **Apply** is the only operation that saves a new replacement. **Reset** restores the original without removing your file.
-5. **Files** opens the instance's sound folder; **Scan** refreshes the file list. You can drop one supported file onto the panel. The arrow keys move through the focused list and Enter auditions the selected file; Ctrl+Enter (Cmd+Enter on a Mac) applies it.
+5. **Files** asks the system file manager to open the instance's sound folder. If no window appears, click **Copy path** and paste into File Explorer or your file manager. Hover **Copy path** for the exact path. **Scan** refreshes the list after adding files. You can drop one supported file onto the panel. The arrow keys move through the focused list and Enter auditions the selected file; Ctrl+Enter (Cmd+Enter on a Mac) applies it.
 
 Selected files remain selected when you move to another event so it is easy to reuse the same sound. Preview files live in a separate scratch folder and are discarded when you change files or leave the panel. Regular PvP and All assignments apply on the client in single-player and on multiplayer servers.
 
