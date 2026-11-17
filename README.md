@@ -1,13 +1,14 @@
-# Sound Panel 1.0.0
+# Sound Panel 1.0.1
 
 Minecraft Java **1.21.11** client mod. Requires Java 21, Fabric Loader 0.18.4 or newer, Fabric API, and Mod Menu 17. No server mods required.
 
 1. Place the release JAR, Fabric API, and Mod Menu in your Minecraft instance's `mods` directory.
 2. Put audio files into the instance's `sounds` folder (for a standard install, `.minecraft/sounds`). Sound Panel creates this folder on first launch.
-3. Open **Mods → Sound Panel → Configure**. Expand an entity in **Entities**, choose a specific action, then **Choose file**. You can also drop a single file onto the panel after selecting an action. In the file view click **Refresh** if you just added more clips.
-4. **Preview** plays your replacement. **Original** plays Minecraft's sound. **Reset** restores the action without deleting your audio file.
+3. Open **Mods → Sound Panel → Configure**. **PvP** starts with common melee, crystal, survival, mace, shield and XP sounds. **All** keeps the full expandable sound catalog. Search the event list on the left and the audio file list on the right separately.
+4. Select an event on the left and a file on the right. **Original** plays vanilla or the raw pack event, **Current** plays your installed replacement, and **Preview** lets you hear the selected file before saving. **Apply** is the only operation that saves a new replacement. **Reset** restores the original without removing your file.
+5. **Files** opens the instance's sound folder; **Scan** refreshes the file list. You can drop one supported file onto the panel. The arrow keys move through the focused list and Enter auditions the selected file; Ctrl+Enter (Cmd+Enter on a Mac) applies it.
 
-Search accepts an entity, an action, or a sound ID. **All sounds** also includes non-entity sounds such as blocks, UI, and music. Regular entity and All sounds assignments are client-side and apply in single-player and on multiplayer servers.
+Selected files remain selected when you move to another event so it is easy to reuse the same sound. Preview files live in a separate scratch folder and are discarded when you change files or leave the panel. Regular PvP and All assignments apply on the client in single-player and on multiplayer servers.
 
 **Server sounds** shows events declared by the currently active server resource packs (including detected file-only sound overrides). Enable/download the server pack normally through Minecraft; the mod neither downloads nor scans inactive packs itself. Regular local packs are excluded from this tab. A replacement made in this tab is stored separately for the current server address and applies only while its sound is present in an active server pack. With no assignment, the server's original sound plays.
 
@@ -29,4 +30,4 @@ Use a **full JDK 21** installation:
 ```sh
 ./gradlew build
 ```
-This includes checks for grouping, Bottle impact context, real Ogg Vorbis import, independent assignments and persistence.
+This includes checks for curated PvP sound IDs, compact and wide panel geometry, temporary previews, Bottle impact context, real Ogg Vorbis import, independent assignments, server provenance and persistence.

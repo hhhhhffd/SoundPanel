@@ -52,14 +52,72 @@ public final class SoundConfig {
     }
 
     synchronized Clip install(Identifier event, Path path) throws IOException {
+        Clip clip = prepare(path, importDir());
+        finish(event, clip);
+        return clip;
+    }
+
+    Clip prepareCandidate(Path path) throws IOException { return prepare(path, previewDir()); }
+
+    synchronized Clip installCandidate(Identifier event, Clip preview) throws IOException {
+        if (preview == null || !TOKEN.matcher(preview.token()).matches()) throw new IOException("Choose an audio file first.");
+        Path from = previewDir().resolve(preview.token() + ".ogg");
+        if (!Files.isRegularFile(from, LinkOption.NOFOLLOW_LINKS)) throw new IOException("Audio preview is no longer available.");
+        Files.createDirectories(importDir());
+        Clip clip = new Clip(token(), preview.name());
+        try {
+            copyBounded(from, importDir().resolve(clip.token() + ".ogg"));
+            finish(event, clip);
+            return clip;
+        } catch (IOException | RuntimeException e) {
+            try { Files.deleteIfExists(importDir().resolve(clip.token() + ".ogg")); } catch (IOException ignored) {}
+            throw e;
+        }
+    }
+
+    private void finish(Identifier event, Clip clip) throws IOException {
+        try {
+            var updated = new TreeMap<>(mappings);
+            updated.put(event.toString(), clip);
+            save(updated);
+        } catch (IOException | RuntimeException e) {
+            try { Files.deleteIfExists(importDir().resolve(clip.token() + ".ogg")); } catch (IOException ignored) {}
+            throw e;
+        }
+    }
+
+    void discardCandidate(Clip clip) {
+        if (clip == null || !TOKEN.matcher(clip.token()).matches()) return;
+        try { Files.deleteIfExists(previewDir().resolve(clip.token() + ".ogg")); }
+        catch (IOException ignored) {
+            // A streaming sound can still have the file open on Windows. Clean it at the next start.
+        }
+    }
+
+    void clearCandidateCache() {
+        if (!Files.isDirectory(previewDir(), LinkOption.NOFOLLOW_LINKS)) return;
+        try (var paths = Files.list(previewDir())) {
+            for (Path candidate : paths.toList()) {
+                String name = candidate.getFileName().toString();
+                if (name.matches("[a-f0-9]{32}\\.ogg") || name.matches("soundpanel-convert-[0-9]+\\.ogg")) {
+                    try { Files.deleteIfExists(candidate); } catch (IOException ignored) {}
+                }
+            }
+        } catch (IOException ignored) {}
+    }
+
+    private Path previewDir() { return configDir.resolve("preview"); }
+    private static String token() { return UUID.randomUUID().toString().replace("-", ""); }
+
+    private static Clip prepare(Path path, Path directory) throws IOException {
         String name = path.getFileName().toString();
         if (!AudioConversion.isSupportedName(name)) throw new IOException("Choose a supported audio file.");
         if (!Files.isRegularFile(path) || Files.size(path) > AudioConversion.MAX_INPUT_BYTES) {
             throw new IOException("Choose a local audio file up to 64 MB.");
         }
-        Files.createDirectories(importDir());
-        String token = UUID.randomUUID().toString().replace("-", "");
-        Path destination = importDir().resolve(token + ".ogg");
+        Files.createDirectories(directory);
+        Clip clip = new Clip(token(), name);
+        Path destination = directory.resolve(clip.token() + ".ogg");
         try {
             if (AudioConversion.isOggName(name) && Files.size(path) <= MAX_SIZE) {
                 copyBounded(path, destination);
@@ -73,10 +131,6 @@ public final class SoundConfig {
                 AudioConversion.transcode(path, destination);
                 validate(destination);
             }
-            Clip clip = new Clip(token, name);
-            var updated = new TreeMap<>(mappings);
-            updated.put(event.toString(), clip);
-            save(updated);
             return clip;
         } catch (IOException | RuntimeException e) {
             try { Files.deleteIfExists(destination); } catch (IOException ignored) {}
@@ -129,6 +183,8 @@ public final class SoundConfig {
         String token = path.getPath().substring("sounds/imported/".length(), path.getPath().length() - ".ogg".length());
         if (!TOKEN.matcher(token).matches()) return null;
         Path file = importDir().resolve(token + ".ogg");
-        return Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) ? file : null;
+        if (Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) return file;
+        Path candidate = previewDir().resolve(token + ".ogg");
+        return Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS) ? candidate : null;
     }
 }

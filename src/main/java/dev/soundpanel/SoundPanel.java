@@ -17,6 +17,7 @@ public final class SoundPanel implements ClientModInitializer {
 
     @Override public void onInitializeClient() {
         CONFIG.load();
+        CONFIG.clearCandidateCache();
         PackSoundCatalog.register();
         try { java.nio.file.Files.createDirectories(CONFIG.sourceDir()); }
         catch (java.io.IOException e) { LOG.warn("Unable to create sounds folder", e); }
@@ -59,8 +60,15 @@ public final class SoundPanel implements ClientModInitializer {
             if (factory == null || factory.getWeight() == 0) return false;
             preview = PositionedSoundInstance.ui(SoundEvent.of(id), 1f, 1f);
         }
-        client.getSoundManager().play(preview);
-        return true;
+        return client.getSoundManager().play(preview) == SoundSystem.PlayResult.STARTED;
+    }
+
+    static boolean previewCandidate(MinecraftClient client, Identifier event, SoundConfig.Clip clip) {
+        stopPreview(client);
+        Sound sound = custom(clip, 16);
+        if (CONFIG.resolveVirtual(sound.getLocation()) == null) return false;
+        preview = new ClipPreview(event, sound);
+        return client.getSoundManager().play(preview) == SoundSystem.PlayResult.STARTED;
     }
 
     static void stopPreview(MinecraftClient client) {

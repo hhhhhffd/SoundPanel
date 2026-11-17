@@ -10,6 +10,18 @@ import java.util.List;
 public final class SoundPanelTests {
     public static void main(String[] args) throws Exception {
         PackSoundCatalogTests.run();
+        checkLayout(320, 180, 3);
+        checkLayout(393, 270, 5);
+        checkLayout(426, 240, 4);
+        checkLayout(854, 480, 12);
+        var registered = minecraftSoundNames();
+        for (var group : PvpSounds.GROUPS) {
+            for (var event : group.events()) {
+                check(event.id().equals(SoundCatalog.BOTTLE_SHATTER) ||
+                        registered.contains(event.id().getPath()),
+                        "Vanilla catalog ID exists: " + event.id());
+            }
+        }
         var zombie = Identifier.ofVanilla("entity.zombie.hurt");
         var player = Identifier.ofVanilla("entity.player.attack.crit");
         var groups = SoundCatalog.group(List.of(zombie, player,
@@ -34,7 +46,16 @@ public final class SoundPanelTests {
         }
         var configDir = root.resolve("config");
         var config = new SoundConfig(configDir, sounds);
-        var defaultClip = config.install(player, clip);
+        var candidate = config.prepareCandidate(clip);
+        check(config.clipFor(player) == null, "preview does not assign anything");
+        check(!Files.exists(configDir.resolve("sounds.json")), "preview does not save config");
+        var candidateId = Identifier.of("soundpanel", "sounds/imported/" + candidate.token() + ".ogg");
+        check(Files.isRegularFile(config.resolveVirtual(candidateId)), "preview is visible to the sound loader");
+        var defaultClip = config.installCandidate(player, candidate);
+        check(!candidate.token().equals(defaultClip.token()), "the committed clip is independent of its preview");
+        config.discardCandidate(candidate);
+        check(config.resolveVirtual(candidateId) == null, "discard removes only the temporary preview");
+        check(config.clipFor(player).equals(defaultClip), "committed clip survives removing preview");
         var shatterClip = config.install(SoundCatalog.BOTTLE_SHATTER, clip);
         check(!defaultClip.token().equals(shatterClip.token()), "independent mappings");
         check(config.clipFor(player).equals(defaultClip), "individual action mapping");
@@ -63,7 +84,38 @@ public final class SoundPanelTests {
         check(AudioConversion.isSupportedName("voice.MP3"), "uppercase MP3 detected");
         check(AudioConversion.isSupportedName("sample.flac"), "FLAC detected");
         check(!AudioConversion.isSupportedName("playlist.m3u8"), "network/playlist formats are not supported");
-        System.out.println("PASS: entity events, Bottle impact context, independent assignments, real Ogg Vorbis import, validation, reset and persistence");
+        System.out.println("PASS: PvP registry IDs and responsive layout, temporary preview/Apply, entity events, Bottle context, imports, reset and persistence");
+    }
+
+    private static java.util.Set<String> minecraftSoundNames() throws IOException {
+        // Bootstrapping the merged Minecraft JAR without Fabric's runtime access wideners
+        // does not work in JavaExec. Inspect the exact target's SoundEvents registration literals.
+        var names = new java.util.HashSet<String>();
+        try (var bytecode = SoundPanelTests.class.getClassLoader()
+                .getResourceAsStream("net/minecraft/sound/SoundEvents.class")) {
+            if (bytecode == null) throw new IOException("Missing 1.21.11 SoundEvents class");
+            new org.objectweb.asm.ClassReader(bytecode).accept(new org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                @Override public org.objectweb.asm.MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                    if (!name.equals("<clinit>")) return null;
+                    return new org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM9) {
+                        @Override public void visitLdcInsn(Object value) {
+                            if (value instanceof String literal) names.add(literal);
+                        }
+                    };
+                }
+            }, org.objectweb.asm.ClassReader.SKIP_DEBUG | org.objectweb.asm.ClassReader.SKIP_FRAMES);
+        }
+        return names;
+    }
+
+    private static void checkLayout(int w, int h, int minimumRows) {
+        var l = SoundPanelLayout.of(w, h);
+        check(l.leftX() + l.leftWidth() < l.rightX(), "two separate panels");
+        check(l.rightX() + l.rightWidth() < w, "right panel fits viewport");
+        check(l.searchY() < l.listTop() && l.listTop() < l.listBottom(), "visible list");
+        check(l.listBottom() < l.detailY() && l.detailY() < l.buttonY(), "list and controls do not overlap");
+        check(l.buttonY() + l.buttonHeight() < l.footerY(), "controls above footer");
+        check(l.visibleRows() >= minimumRows, "enough visible rows for " + w + "x" + h + ": " + l.visibleRows());
     }
 
     private static void check(boolean condition, String explanation) {
