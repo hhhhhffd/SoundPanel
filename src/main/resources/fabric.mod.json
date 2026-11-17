@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "soundpanel",
+  "version": "${version}",
+  "name": "Sound Panel",
+  "description": "Customize Minecraft entity sounds one event at a time.",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "dev.soundpanel.SoundPanel"
+    ],
+    "modmenu": [
+      "dev.soundpanel.MenuIntegration"
+    ]
+  },
+  "mixins": [
+    "soundpanel.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.4",
+    "minecraft": "=1.21.11",
+    "java": ">=21",
+    "fabric-api": "*",
+    "modmenu": ">=17.0.0"
+  }
+}

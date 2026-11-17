@@ -1,0 +1,36 @@
+plugins {
+    id 'fabric-loom' version '1.14.10'
+}
+version = '1.0.0'
+group = 'dev.soundpanel'
+base { archivesName = 'sound-panel' }
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.terraformersmc.com/releases/' }
+}
+dependencies {
+    minecraft 'com.mojang:minecraft:1.21.11'
+    mappings 'net.fabricmc:yarn:1.21.11+build.4:v2'
+    modImplementation 'net.fabricmc:fabric-loader:0.18.4'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.3+1.21.11'
+    modImplementation 'com.terraformersmc:modmenu:17.0.0'
+}
+processResources {
+    inputs.property 'version', version
+    filesMatching('fabric.mod.json') { expand version: version }
+}
+java { withSourcesJar() }
+tasks.withType(JavaCompile).configureEach { options.release = 21 }
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+tasks.register('verifySoundPanel', JavaExec) {
+    dependsOn tasks.named('testClasses')
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.soundpanel.SoundPanelTests'
+}
+tasks.named('check') { dependsOn tasks.named('verifySoundPanel') }
+// This project uses the focused JavaExec test suite rather than a JUnit engine.
+tasks.named('test') { failOnNoDiscoveredTests = false }
